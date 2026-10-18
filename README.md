@@ -1,8 +1,14 @@
-# Dynalist for macOS
+# Dynalist for macOS (Unofficial)
 
-A tiny native macOS wrapper for [dynalist.io](https://dynalist.io), built with
+A tiny (~1.4 MB) native macOS wrapper for [dynalist.io](https://dynalist.io), built with
 [tao](https://github.com/tauri-apps/tao) + [wry](https://github.com/tauri-apps/wry)
-(Tauri's windowing/WebView core, without the Tauri toolchain). ~1.4 MB app.
+(Tauri's windowing/WebView core, without the Tauri toolchain).
+
+## Why?
+
+The official Dynalist desktop app is no longer actively updated and ships as an old Intel-only (`x86_64`) build that lacks native Apple Silicon (`arm64`) and latest macOS (macOS 27+) support. This lightweight wrapper runs natively on Apple Silicon and Intel Macs using macOS's built-in `WKWebView`.
+
+> **Disclaimer:** This is an unofficial, community-maintained open-source wrapper and is not affiliated with, endorsed by, or supported by Dynalist Inc. "Dynalist" and its logo are trademarks of Dynalist Inc.
 
 ## Install
 
@@ -11,7 +17,10 @@ Download the latest `Dynalist-x.y.z.dmg` from
 **Dynalist** into **Applications**.
 
 > Release builds are ad-hoc signed (not notarized). On first launch, right-click
-> the app → **Open**, or run `xattr -dr com.apple.quarantine /Applications/Dynalist.app`.
+> the app → **Open**, or run:
+> ```sh
+> xattr -dr com.apple.quarantine /Applications/Dynalist.app
+> ```
 
 ## Build locally
 
@@ -51,3 +60,7 @@ notarize the DMG automatically (no Gatekeeper warning):
 ## Keyboard shortcuts
 
 ⌘R reload · ⌘⇧H home · ⌘[ / ⌘] back/forward · ⌘= / ⌘- / ⌘0 zoom · ⌃⌘F full screen
+
+## License
+
+[MIT](LICENSE)
