@@ -1,0 +1,20 @@
+[package]
+name = "dynalist"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "Dynalist"
+path = "src/main.rs"
+
+[dependencies]
+tao = "0.37"
+wry = "0.57"
+muda = "0.21"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

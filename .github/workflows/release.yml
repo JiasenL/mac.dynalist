@@ -1,0 +1,85 @@
+name: Release DMG
+
+on:
+  push:
+    tags: ["v*"]          # git tag v0.1.0 && git push origin v0.1.0
+  workflow_dispatch:       # manual run from the Actions tab (uploads artifact only)
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    env:
+      # Optional Developer ID signing + notarization. If these secrets are not set,
+      # the app is ad-hoc signed ("-") and users must right-click → Open the first time.
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}          # base64 of Developer ID .p12
+      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}      # "Developer ID Application: Name (TEAMID)"
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}        # app-specific password
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -1)-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import Developer ID certificate
+        if: env.MACOS_CERTIFICATE != ''
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KC_PWD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KC_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KC_PWD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PWD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PWD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+      - name: Build universal DMG
+        run: |
+          if [[ -n "$MACOS_CERTIFICATE" ]]; then
+            make dmg UNIVERSAL=1 VERSION="${{ steps.ver.outputs.version }}" \
+              CODESIGN_IDENTITY="$MACOS_SIGN_IDENTITY" \
+              CODESIGN_FLAGS="--force --timestamp --options runtime"
+          else
+            make dmg UNIVERSAL=1 VERSION="${{ steps.ver.outputs.version }}" \
+              CODESIGN_IDENTITY="-"
+          fi
+
+      - name: Notarize DMG
+        if: env.MACOS_CERTIFICATE != '' && env.APPLE_ID != ''
+        run: |
+          DMG="dist/Dynalist-${{ steps.ver.outputs.version }}.dmg"
+          codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" "$DMG"
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "$DMG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dynalist-${{ steps.ver.outputs.version }}
+          path: dist/*.dmg
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          generate_release_notes: true
